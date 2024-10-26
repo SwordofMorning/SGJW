@@ -33,19 +33,14 @@ ConstructorInitializerAllOnOneLineOrOnePerLine: false
 # 注释设置
 SpacesBeforeTrailingComments: 1
 SpacesInLineCommentPrefix:
-  Minimum: 1
-  Maximum: 1
+  Minimum: 0
+  Maximum: 0
 
 # Include 设置
 SortIncludes: false
 
 # Extern "C" 设置
 IndentExternBlock: NoIndent
-
-# 单行 if 语句设置,这里允许多种风格存在,因此忽略
-# AllowShortIfStatementsOnASingleLine: true
-# AllowShortBlocksOnASingleLine: true
-# AllowShortCaseLabelsOnASingleLine: false
 
 # 其他设置
 AlignAfterOpenBracket: Align

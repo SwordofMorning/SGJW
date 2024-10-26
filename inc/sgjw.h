@@ -21,7 +21,7 @@ typedef struct _StateGridJPEG
     char* date;
     // Temperature matrix data, IEEE-754 Floating Point, 32 bits float.
     float* matrix;
-}StateGridJPEG;
+} StateGridJPEG;
 
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);
 
