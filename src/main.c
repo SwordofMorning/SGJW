@@ -2,6 +2,8 @@
 
 int main(int argc, char** argv)
 {
-    State_Grid_JPEG_Reader(argv[1]);
+    StateGridJPEG jpeg;
+    State_Grid_JPEG_Reader(argv[1], &jpeg);
+    State_Grid_JPEG_Delete(&jpeg);
     return 0;
 }
