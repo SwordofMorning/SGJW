@@ -25,7 +25,9 @@ const size_t SGJW_WIDTH_BYTES = 2;
 // 2 bytes int, Little-Endian.
 const size_t SGJW_HEIGHT_BYTES = 2;
 // 14 bytes char, Big-Endian, ASCII: YYYYMMDDHHMMSS.
-const size_t SGJW_TIME_BYTES = 14;
+const size_t SGJW_DATE_BYTES = 14;
+// 4 bytes, used for temperature matrix.
+const size_t SGJW_FLOAT32_BYTES = 4;
 // 4 bytes float, Little-Endian.
 const size_t SGJW_EMISSIVITY_BYTES = 4;
 // 4 bytes float, Little-Endian.
@@ -52,6 +54,10 @@ const size_t SGJW_LATITUDE_BYTES = 8;
 const size_t SGJW_ALTITUDE_BYTES = 4;
 // 4 bytes int, Little-Endian, i.e. Description.
 const size_t SGJW_APPENDIX_BYTES = 4;
+
+/* ====================================================================================================== */
+/* ======================================== @par Static Function ======================================== */
+/* ====================================================================================================== */
 
 /**
  * @brief Read file in binary, then copy data to buffer.
@@ -169,11 +175,11 @@ static size_t Binary_Get_Offsite(uint8_t* buffer, size_t buffer_size)
 
 
 /**
- * @brief Get 2 bytes data.
+ * @brief Get 2 bytes int.
  * 
  * @param buffer JPEG binary buffer.
  * @param offset return begin.
- * @param length return buffer size.
+ * @param length return buffer size, which always 2 bytes.
  * @return buffer: [offset, offset + length).
  * 
  * @note Contains little-endian to big-endian conversion.
@@ -189,6 +195,76 @@ static uint16_t Binary_Get_Uint16_L2B(uint8_t* buffer, size_t offset, size_t len
 
     return retval;
 }
+
+/**
+ * @brief Get 4 bytes float.
+ * 
+ * @param buffer JPEG binary buffer.
+ * @param offset return begin.
+ * @param length return buffer size, which always 4 bytes.
+ * @return buffer: [offset, offset + length).
+ * 
+ * @note Contains little-endian to big-endian conversion.
+ */
+static float Binary_Get_Float16_L2B(uint8_t* buffer, size_t offset, size_t length)
+{
+    uint32_t retval = 0;
+
+    for (int i = offset; i < offset + length; ++i)
+    {
+        retval |= buffer[i] << 8 * (i - offset);
+    }
+
+    return *(float*)&retval;
+}
+
+/**
+ * @brief Write length 
+ * 
+ * @param buffer JPEG binary buffer.
+ * @param offset return begin.
+ * @param length return buffer size.
+ * @param ret write-back buffer.
+ */
+static void Binary_Get_Char(uint8_t* buffer, size_t offset, size_t length, char* ret)
+{
+    for (int i = offset; i < offset + length; ++i)
+    {
+        ret[i - offset] = buffer[i];
+    }
+}
+
+static float* Binary_Get_Float32_Matrix_L2B(uint8_t* buffer, size_t offset, size_t width, size_t height)
+{
+    size_t size = width * height;
+    Debug("Picture size is: %d x %d = %d", width, height, size);
+
+    float* float_mat = (float*)malloc(SGJW_FLOAT32_BYTES * size);
+    if (float_mat == NULL)
+    {
+        Debug("Allocate memory for float matrix failed.\n");
+        return NULL;
+    }
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        uint32_t value = (buffer[offset + i * 4] << 8 * 0) |
+                         (buffer[offset + i * 4 + 1] << 8 * 1) |
+                         (buffer[offset + i * 4 + 2] << 8 * 2) |
+                         (buffer[offset + i * 4 + 3] << 8 * 3);
+        float_mat[i] = *(float*)&value;
+        // offset += i * SGJW_FLOAT32_BYTES;
+        // float_mat[i] = Binary_Get_Float16_L2B(buffer, offset, SGJW_FLOAT32_BYTES);
+    }
+
+    // Debug("End get matrix, allocated size is [%x][%d], offset: [%x][%d]", SGJW_FLOAT32_BYTES * size, SGJW_FLOAT32_BYTES * size, offset, offset);
+
+    return float_mat;
+}
+
+/* ========================================================================================== */
+/* ======================================== @par API ======================================== */
+/* ========================================================================================== */
 
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 {
@@ -277,6 +353,39 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     *(obj->height) = height;
     offset += SGJW_HEIGHT_BYTES;
 
+    /* ----- Step 7 : Get DATA ----- */
+    
+    obj->date = (char*)malloc(sizeof(char) * SGJW_DATE_BYTES);
+    if (obj->date == NULL)
+    {
+        retval = -7;
+        Debug("Allocate memory for date failed.\n");
+        goto free_return;
+    }
+
+    Binary_Get_Char(_bin_original, offset, SGJW_DATE_BYTES, obj->date);
+    Debug("Capture date: [%s].\n", obj->date);
+
+    offset += SGJW_DATE_BYTES;
+
+    /* ----- Step 8 : Get Float Mat ----- */
+
+    obj->matrix = Binary_Get_Float32_Matrix_L2B(_bin_original, offset, width, height);
+    if (obj->matrix == NULL)
+    {
+        retval = -8;
+        Debug("Get float matrix failed.\n");
+        goto free_return;
+    }
+    Debug("Matrix[0][0] is: [%x][%.2f]\n", obj->matrix[0], obj->matrix[0]);
+    Debug("Matrix[%d][%d] is: [%x][%.2f]\n", width, height, obj->matrix[width * height], obj->matrix[width * height]);
+
+    offset += width * height * SGJW_FLOAT32_BYTES;
+
+    /* ----- Step 9 : Get Emissivity ----- */
+
+
+
 free_return:
     if (buffer_size > 0)
         free(_bin_original);
@@ -295,19 +404,22 @@ void State_Grid_JPEG_Delete(StateGridJPEG* obj)
     if (!obj)
         return;
 
-    if (obj->version)
+    void* pointers[] =
     {
-       free(obj->version);
-       obj->version = NULL;
-    }
-    if (obj->width)
+        obj->version,
+        obj->width,
+        obj->height,
+        obj->date,
+        obj->matrix
+    };
+
+    for (int i = 0; i < sizeof(pointers) / sizeof(void*); i++)
     {
-       free(obj->width);
-       obj->width = NULL;
-    }
-    if (obj->height)
-    {
-       free(obj->height);
-       obj->height = NULL;
+        if (pointers[i])
+        {
+            free(pointers[i]);
+            pointers[i] = NULL;
+            Debug("free ptr[%d]\n", i);
+        }
     }
 }
