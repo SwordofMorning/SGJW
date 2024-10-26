@@ -323,7 +323,7 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     uint16_t version = Binary_Get_Uint16_L2B(_bin_original, offset);
     Debug("Version is: [%x][%d]\n", version, version);
-    
+
     obj->version = (uint16_t*)malloc(sizeof(uint16_t));
     if (obj->version == NULL)
     {
@@ -368,7 +368,7 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     offset += SGJW_HEIGHT_BYTES;
 
     /* ----- Step 7 : Get DATA ----- */
-    
+
     obj->date = (char*)malloc(sizeof(char) * SGJW_DATE_BYTES);
     if (obj->date == NULL)
     {
