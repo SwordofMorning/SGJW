@@ -367,7 +367,7 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     *(obj->height) = height;
     offset += SGJW_HEIGHT_BYTES;
 
-    /* ----- Step 7 : Get DATA ----- */
+    /* ----- Step 7 : Get Date ----- */
 
     obj->date = (char*)malloc(sizeof(char) * SGJW_DATE_BYTES);
     if (obj->date == NULL)
@@ -397,9 +397,23 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     offset += width * height * SGJW_FLOAT32_BYTES;
 
-    Debug("After Matrix, offset: [%x]\n", offset);
-
     /* ----- Step 9 : Get Emissivity ----- */
+
+    float emissivity = Binary_Get_Float32_L2B(_bin_original, offset);
+    Debug("emissivity is: [%x][%d]\n", emissivity, emissivity);
+
+    obj->emissivity = (float*)malloc(sizeof(float));
+    if (obj->date == NULL)
+    {
+        retval = -9;
+        Debug("Allocate memory for emissivity failed.\n");
+        goto free_return;
+    }
+
+    *(obj->emissivity) = emissivity;
+    offset += SGJW_EMISSIVITY_BYTES;
+
+    /* ----- Step 10 : Get Ambient Temperature ----- */
 
 free_return:
     if (buffer_size > 0)
@@ -426,7 +440,8 @@ void State_Grid_JPEG_Delete(StateGridJPEG* obj)
         obj->width,
         obj->height,
         obj->date,
-        obj->matrix
+        obj->matrix,
+        obj->emissivity
     };
     // clang-format on
 
