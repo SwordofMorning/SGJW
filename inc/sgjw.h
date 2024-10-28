@@ -41,6 +41,14 @@ typedef struct _StateGridJPEG
     char* sn;
     // Longitude, 8 bytes, IEEE-754 float64.
     double* longitude;
+    // Latitude, 8 bytes, IEEE-754 float64.
+    double* latitude;
+    // Altitude 4 bytes.
+    uint32_t* altitude;
+    // Appendix information length, i.e. length of description.
+    uint32_t* appendix_length;
+    // Appendix information i.e. description.
+    char* appendix;
 } StateGridJPEG;
 
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);

@@ -53,7 +53,7 @@ const size_t SGJW_LATITUDE_BYTES = 8;
 // 4 bytes int, Little-Endian.
 const size_t SGJW_ALTITUDE_BYTES = 4;
 // 4 bytes int, Little-Endian, i.e. Description.
-const size_t SGJW_APPENDIX_BYTES = 4;
+const size_t SGJW_APPENDIX_LENGTH_BYTES = 4;
 
 /* ====================================================================================================== */
 /* ======================================== @par Static Function ======================================== */
@@ -77,7 +77,7 @@ static size_t Open_File_In_Binary(const char* filepath, uint8_t** buffer)
     FILE* file = fopen(filepath, "rb");
     if (file == NULL)
     {
-        Debug("No such file: [%s].\n", filepath);
+        Debug("No such file: [%s]\n", filepath);
         goto direct_return;
     }
 
@@ -153,6 +153,8 @@ static int8_t Binary_Verification_EOF(uint8_t* buffer, size_t buffer_size)
  * @param offset offset in buffer.
  * @param nbytes how many bytes to get.
  * @return buffer: [offset, offset + nbytes).
+ * 
+ * @note Contains little-endian to big-endian conversion.
  */
 static uint64_t Binary_Get_Uint_L2B(uint8_t* buffer, size_t offset, size_t nbytes)
 {
@@ -376,9 +378,8 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     }
 
     Binary_Get_Char(_bin_original, offset, SGJW_DATE_BYTES, obj->date);
-    Debug("Date: [%s].\n", obj->date);
-
     offset += SGJW_DATE_BYTES;
+    Debug("Date: [%s]\n", obj->date);
 
     /* ----- Step 8 : Get Float Mat ----- */
 
@@ -491,8 +492,8 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     }
 
     Binary_Get_Char(_bin_original, offset, SGJW_MANUFACTURER_BYTES, obj->manufacturer);
-    Debug("Manufacturer: [%s].\n", obj->manufacturer);
     offset += SGJW_MANUFACTURER_BYTES;
+    Debug("Manufacturer: [%s]\n", obj->manufacturer);
 
     /* ----- Step 15 : Get Product ----- */
 
@@ -505,8 +506,8 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     }
 
     Binary_Get_Char(_bin_original, offset, SGJW_PRODUCT_BYTES, obj->product);
-    Debug("Product: [%s].\n", obj->product);
     offset += SGJW_PRODUCT_BYTES;
+    Debug("Product: [%s]\n", obj->product);
 
     /* ----- Step 16 : Get SN ----- */
 
@@ -519,13 +520,81 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     }
 
     Binary_Get_Char(_bin_original, offset, SGJW_SN_BYTES, obj->sn);
-    Debug("Serial Number: [%s].\n", obj->sn);
     offset += SGJW_SN_BYTES;
+    Debug("Serial Number: [%s]\n", obj->sn);
 
-    /* ----- Step 16 : Get Longitude ----- */
+    /* ----- Step 17 : Get Longitude ----- */
 
-    double longitude = Binary_Get_Float64_L2B(_bin_original, offset);
-    Debug("Longitude: [%x][%.2lf]\n", longitude, longitude);
+    obj->longitude = (double*)malloc(sizeof(double));
+    if (obj->longitude == NULL)
+    {
+        retval = -17;
+        Debug("Allocate memory for longitude failed.\n");
+        goto free_return;
+    }
+
+    *(obj->longitude) = Binary_Get_Float64_L2B(_bin_original, offset);
+    offset += SGJW_LONGITUDE_BYTES;
+    Debug("Longitude: [%x][%.2f]\n", *(obj->longitude), *(obj->longitude));
+
+    /* ----- Step 18 : Get Latitude ----- */
+
+    obj->latitude = (double*)malloc(sizeof(double));
+    if (obj->latitude == NULL)
+    {
+        retval = -18;
+        Debug("Allocate memory for latitude failed.\n");
+        goto free_return;
+    }
+
+    *(obj->latitude) = Binary_Get_Float64_L2B(_bin_original, offset);
+    offset += SGJW_LATITUDE_BYTES;
+    Debug("Latitude: [%x][%.2f]\n", *(obj->latitude), *(obj->latitude));
+
+    /* ----- Step 19 : Get Altitude ----- */
+
+    obj->altitude = (uint32_t*)malloc(sizeof(uint32_t));
+    if (obj->altitude == NULL)
+    {
+        retval = -19;
+        Debug("Allocate memory for altitudes failed.\n");
+        goto free_return;
+    }
+
+    *(obj->altitude) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_ALTITUDE_BYTES);
+    offset += SGJW_ALTITUDE_BYTES;
+    Debug("Altitude: [%x][%d]\n", *(obj->altitude), *(obj->altitude));
+
+    /* ----- Step 20 : Get Appendix Length ----- */
+
+    obj->appendix_length = (uint32_t*)malloc(sizeof(uint32_t));
+    if (obj->appendix_length == NULL)
+    {
+        retval = -20;
+        Debug("Allocate memory for appendix length failed.\n");
+        goto free_return;
+    }
+
+    *(obj->appendix_length) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_APPENDIX_LENGTH_BYTES);
+    offset += SGJW_APPENDIX_LENGTH_BYTES;
+    Debug("Appendix Length: [%x][%d]\n", *(obj->appendix_length), *(obj->appendix_length));
+
+    /* ----- Step 21 : Get Appendix ----- */
+
+    if (*(obj->appendix_length) == 0)
+        goto free_return;
+
+    obj->appendix = (char*)malloc(sizeof(char) * *(obj->appendix_length));
+    if (obj->appendix == NULL)
+    {
+        retval = -21;
+        Debug("Allocate memory for serial number failed.\n");
+        goto free_return;
+    }
+
+    Binary_Get_Char(_bin_original, offset, *(obj->appendix_length), obj->appendix);
+    offset += *(obj->appendix_length);
+    Debug("Appendix: [%s]\n", obj->appendix);
 
 free_return:
     if (buffer_size > 0)
@@ -561,7 +630,12 @@ void State_Grid_JPEG_Delete(StateGridJPEG* obj)
         obj->reflective_temp,
         obj->manufacturer,
         obj->product,
-        obj->sn
+        obj->sn,
+        obj->longitude,
+        obj->latitude,
+        obj->altitude,
+        obj->appendix_length,
+        obj->appendix
     };
     // clang-format on
 
