@@ -147,79 +147,29 @@ static int8_t Binary_Verification_EOF(uint8_t* buffer, size_t buffer_size)
 }
 
 /**
- * @brief Get 1 bytes int.
+ * @brief Get N bytes int, max 8 bytes.
  * 
- * @param buffer JPEG binary buffer.
+ * @param buffer* JPEG binary buffer.
  * @param offset offset in buffer.
- * @return buffer: [offset].
+ * @param nbytes how many bytes to get.
+ * @return buffer: [offset, offset + nbytes).
  */
-static uint8_t Binary_Get_Uint8(uint8_t* buffer, size_t offset)
-{
-    return buffer[offset];
-}
-
-/**
- * @brief Get 2 bytes int.
- * 
- * @param buffer JPEG binary buffer.
- * @param offset offset in buffer.
- * @return buffer: [offset, offset + 2).
- * 
- * @note Contains little-endian to big-endian conversion.
- */
-static uint16_t Binary_Get_Uint16_L2B(uint8_t* buffer, size_t offset)
+static uint64_t Binary_Get_Uint_L2B(uint8_t* buffer, size_t offset, size_t nbytes)
 {
     uint64_t value = 0;
-    for (int i = 0; i < 2; ++i)
-    {
-        value |= (buffer[offset + i] << 8 * i);
-    }
-    return value;
-}
 
-/**
- * @brief Get 4 bytes int.
- * 
- * @param buffer JPEG binary buffer.
- * @param offset offset in buffer.
- * @return buffer: [offset, offset + 4).
- * 
- * @note Contains little-endian to big-endian conversion.
- */
-static uint32_t Binary_Get_Uint32_L2B(uint8_t* buffer, size_t offset)
-{
-    uint64_t value = 0;
-    for (int i = 0; i < 4; ++i)
-    {
-        value |= (buffer[offset + i] << 8 * i);
-    }
-    return value;
-}
-
-/**
- * @brief Get 8 bytes int.
- * 
- * @param buffer JPEG binary buffer.
- * @param offset offset in buffer.
- * @return buffer: [offset, offset + 8).
- * 
- * @note Contains little-endian to big-endian conversion.
- */
-static uint64_t Binary_Get_Uint64_L2B(uint8_t* buffer, size_t offset)
-{
-    uint64_t value = 0;
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < nbytes; ++i)
     {
         value |= ((uint64_t)buffer[offset + i] << 8 * i);
-        printf("current: [%x], value: [%x]\n", buffer[offset + i], value);
     }
+
     return value;
 }
 
 /**
  * @brief Get 4 bytes float.
  * 
- * @param buffer JPEG binary buffer.
+ * @param buffer* JPEG binary buffer.
  * @param offset offset in buffer.
  * @param length return buffer size, which always 4 bytes.
  * @return buffer: [offset, offset + 4).
@@ -234,7 +184,7 @@ static float Binary_Get_Float32_L2B(uint8_t* buffer, size_t offset)
         float f32;
     } value;
 
-    value.u32 = Binary_Get_Uint32_L2B(buffer, offset);
+    value.u32 = Binary_Get_Uint_L2B(buffer, offset, 4);
 
     return value.f32;
 }
@@ -242,7 +192,7 @@ static float Binary_Get_Float32_L2B(uint8_t* buffer, size_t offset)
 /**
  * @brief Get 8 bytes float.
  * 
- * @param buffer JPEG binary buffer.
+ * @param buffer* JPEG binary buffer.
  * @param offset offset in buffer.
  * @param length return buffer size, which always 8 bytes.
  * @return buffer: [offset, offset + 8).
@@ -257,7 +207,7 @@ static double Binary_Get_Float64_L2B(uint8_t* buffer, size_t offset)
         double f64;
     } value;
 
-    value.u64 = Binary_Get_Uint64_L2B(buffer, offset);
+    value.u64 = Binary_Get_Uint_L2B(buffer, offset, 8);
 
     return value.f64;
 }
@@ -294,7 +244,7 @@ static size_t Binary_Get_Offsite(uint8_t* buffer, size_t buffer_size)
     if (buffer_size >= expected_end_size + offset_size)
     {
         size_t offset_start = buffer_size - expected_end_size - offset_size;
-        offset = Binary_Get_Uint32_L2B(buffer, offset_start);
+        offset = Binary_Get_Uint_L2B(buffer, offset_start, offset_size);
     }
 
     return offset;
@@ -314,7 +264,6 @@ static size_t Binary_Get_Offsite(uint8_t* buffer, size_t buffer_size)
 static float* Binary_Get_Matrix(uint8_t* buffer, size_t offset, size_t width, size_t height)
 {
     size_t size = width * height;
-    Debug("Picture size is: %d x %d = %d\n", width, height, size);
 
     float* float_mat = (float*)malloc(SGJW_FLOAT32_BYTES * size);
     if (float_mat == NULL)
@@ -376,9 +325,6 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     /* ----- Step 4 : Get Version ----- */
 
-    uint16_t version = Binary_Get_Uint16_L2B(_bin_original, offset);
-    Debug("Version is: [%x][%d]\n", version, version);
-
     obj->version = (uint16_t*)malloc(sizeof(uint16_t));
     if (obj->version == NULL)
     {
@@ -387,13 +333,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->version) = version;
+    *(obj->version) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_VERSION_BYTES);
     offset += SGJW_VERSION_BYTES;
+    Debug("Version: [%x][%d]\n", *(obj->version), *(obj->version));
 
     /* ----- Step 5 : Get Width ----- */
-
-    uint16_t width = Binary_Get_Uint16_L2B(_bin_original, offset);
-    Debug("Width is: [%x][%d]\n", width, width);
 
     obj->width = (uint16_t*)malloc(sizeof(uint16_t));
     if (obj->width == NULL)
@@ -403,13 +347,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->width) = width;
+    *(obj->width) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_WIDTH_BYTES);
     offset += SGJW_WIDTH_BYTES;
+    Debug("Width: [%x][%d]\n", *(obj->width), *(obj->width));
 
     /* ----- Step 6 : Get Height ----- */
-
-    uint16_t height = Binary_Get_Uint16_L2B(_bin_original, offset);
-    Debug("Height is: [%x][%d]\n", height, height);
 
     obj->height = (uint16_t*)malloc(sizeof(uint16_t));
     if (obj->height == NULL)
@@ -419,8 +361,9 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->height) = height;
+    *(obj->height) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_HEIGHT_BYTES);
     offset += SGJW_HEIGHT_BYTES;
+    Debug("Height: [%x][%d]\n", *(obj->height), *(obj->height));
 
     /* ----- Step 7 : Get Date ----- */
 
@@ -433,29 +376,27 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     }
 
     Binary_Get_Char(_bin_original, offset, SGJW_DATE_BYTES, obj->date);
-    Debug("Capture date: [%s].\n", obj->date);
+    Debug("Date: [%s].\n", obj->date);
 
     offset += SGJW_DATE_BYTES;
 
     /* ----- Step 8 : Get Float Mat ----- */
 
-    obj->matrix = Binary_Get_Matrix(_bin_original, offset, width, height);
+    obj->matrix = Binary_Get_Matrix(_bin_original, offset, *(obj->width), *(obj->height));
+
     if (obj->matrix == NULL)
     {
         retval = -8;
         Debug("Get float matrix failed.\n");
         goto free_return;
     }
-    Debug("Matrix[0][0] is: [%.2f]\n", obj->matrix[0]);
-    Debug("Matrix[0][1] is: [%.2f]\n", obj->matrix[1]);
-    Debug("Matrix[%d][%d] is: [%.2f]\n", width, height, obj->matrix[width * height - 1]);
 
-    offset += width * height * SGJW_FLOAT32_BYTES;
+    Debug("Matrix[0][0]: [%.2f]\n", obj->matrix[0]);
+    Debug("Matrix[0][1]: [%.2f]\n", obj->matrix[1]);
+    Debug("Matrix[%d][%d]: [%.2f]\n", *(obj->width), *(obj->width), obj->matrix[*(obj->width) * *(obj->height) - 1]);
+    offset += *(obj->width) * *(obj->height) * SGJW_FLOAT32_BYTES;
 
     /* ----- Step 9 : Get Emissivity ----- */
-
-    float emissivity = Binary_Get_Float32_L2B(_bin_original, offset);
-    Debug("Emissivity: [%x][%.2f]\n", emissivity, emissivity);
 
     obj->emissivity = (float*)malloc(sizeof(float));
     if (obj->emissivity == NULL)
@@ -465,13 +406,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->emissivity) = emissivity;
+    *(obj->emissivity) = Binary_Get_Float32_L2B(_bin_original, offset);;
     offset += SGJW_EMISSIVITY_BYTES;
+    Debug("Emissivity: [%x][%.2f]\n", *(obj->emissivity), *(obj->emissivity));
 
     /* ----- Step 10 : Get Ambient Temperature ----- */
-
-    float ambient_temp = Binary_Get_Float32_L2B(_bin_original, offset);
-    Debug("Ambient Temperature: [%x][%.2f]\n", ambient_temp, ambient_temp);
 
     obj->ambient_temp = (float*)malloc(sizeof(float));
     if (obj->ambient_temp == NULL)
@@ -481,13 +420,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->ambient_temp) = ambient_temp;
+    *(obj->ambient_temp) = Binary_Get_Float32_L2B(_bin_original, offset);
     offset += SGJW_AMBIENT_TEMP_BYTES;
+    Debug("Ambient Temperature: [%x][%.2f]\n", *(obj->ambient_temp), *(obj->ambient_temp));
 
     /* ----- Step 11 : Get FOV ----- */
-
-    uint8_t fov = Binary_Get_Uint8(_bin_original, offset);
-    Debug("FOV: [%x][%d]\n", fov, fov);
 
     obj->fov = (uint8_t*)malloc(sizeof(uint8_t));
     if (obj->fov == NULL)
@@ -497,13 +434,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->fov) = fov;
+    *(obj->fov) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_FOV_BYTES);
     offset += SGJW_FOV_BYTES;
+    Debug("FOV: [%x][%d]\n", *(obj->fov), *(obj->fov));
 
     /* ----- Step 11 : Get Distance ----- */
-
-    uint32_t distance = Binary_Get_Uint32_L2B(_bin_original, offset);
-    Debug("Distance: [%x][%d]\n", distance, distance);
 
     obj->distance = (uint32_t*)malloc(sizeof(uint32_t));
     if (obj->distance == NULL)
@@ -513,13 +448,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->distance) = distance;
+    *(obj->distance) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_DISTANCE_BYTES);
     offset += SGJW_DISTANCE_BYTES;
+    Debug("Distance: [%x][%d]\n", *(obj->distance), *(obj->distance));
 
     /* ----- Step 12 : Get Humidity ----- */
-
-    uint8_t humidity = Binary_Get_Uint8(_bin_original, offset);
-    Debug("Humidity: [%x][%d]\n", humidity, humidity);
 
     obj->humidity = (uint8_t*)malloc(sizeof(uint8_t));
     if (obj->humidity == NULL)
@@ -529,13 +462,11 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->humidity) = humidity;
+    *(obj->humidity) = Binary_Get_Uint_L2B(_bin_original, offset, SGJW_HUMIDITY_BYTES);;
     offset += SGJW_HUMIDITY_BYTES;
+    Debug("Humidity: [%x][%d]\n", *(obj->humidity), *(obj->humidity));
 
     /* ----- Step 13 : Get Reflective Temperature ----- */
-
-    float reflective_temp = Binary_Get_Float32_L2B(_bin_original, offset);
-    Debug("Reflective Temperature: [%x][%.2f]\n", reflective_temp, reflective_temp);
 
     obj->reflective_temp = (float*)malloc(sizeof(float));
     if (obj->reflective_temp == NULL)
@@ -545,8 +476,9 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
         goto free_return;
     }
 
-    *(obj->reflective_temp) = reflective_temp;
+    *(obj->reflective_temp) = Binary_Get_Float32_L2B(_bin_original, offset);
     offset += SGJW_REFLECTIVE_TEMP_BYTES;
+    Debug("Reflective Temperature: [%x][%.2f]\n", *(obj->reflective_temp), *(obj->reflective_temp));
 
     /* ----- Step 14 : Get Manufacturer ----- */
 
@@ -560,7 +492,6 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     Binary_Get_Char(_bin_original, offset, SGJW_MANUFACTURER_BYTES, obj->manufacturer);
     Debug("Manufacturer: [%s].\n", obj->manufacturer);
-
     offset += SGJW_MANUFACTURER_BYTES;
 
     /* ----- Step 15 : Get Product ----- */
@@ -575,7 +506,6 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     Binary_Get_Char(_bin_original, offset, SGJW_PRODUCT_BYTES, obj->product);
     Debug("Product: [%s].\n", obj->product);
-
     offset += SGJW_PRODUCT_BYTES;
 
     /* ----- Step 16 : Get SN ----- */
@@ -590,7 +520,6 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
 
     Binary_Get_Char(_bin_original, offset, SGJW_SN_BYTES, obj->sn);
     Debug("Serial Number: [%s].\n", obj->sn);
-
     offset += SGJW_SN_BYTES;
 
     /* ----- Step 16 : Get Longitude ----- */
