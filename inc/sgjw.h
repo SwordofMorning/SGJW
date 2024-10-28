@@ -35,6 +35,12 @@ typedef struct _StateGridJPEG
     float* reflective_temp;
     // Manufacturer, 32 bytes.
     char* manufacturer;
+    // Product(type), 32 bytes.
+    char* product;
+    // Serial number;
+    char* sn;
+    // Longitude, 8 bytes, IEEE-754 float64.
+    double* longitude;
 } StateGridJPEG;
 
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);

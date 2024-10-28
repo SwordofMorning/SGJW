@@ -45,7 +45,7 @@ const size_t SGJW_MANUFACTURER_BYTES = 32;
 // 32 bytes char, Big-Endian.
 const size_t SGJW_PRODUCT_BYTES = 32;
 // 32 bytes char, Big-Endian.
-const size_t SGJW_SERIAL_BYTES = 32;
+const size_t SGJW_SN_BYTES = 32;
 // 8 bytes, float64 (not double), Little-Endian.
 const size_t SGJW_LONGITUDE_BYTES = 8;
 // 8 bytes, float64 (not double), Little-Endian.
@@ -169,10 +169,11 @@ static uint8_t Binary_Get_Uint8(uint8_t* buffer, size_t offset)
  */
 static uint16_t Binary_Get_Uint16_L2B(uint8_t* buffer, size_t offset)
 {
-    // clang-format off
-    uint16_t value = (buffer[offset] << 8 * 0) | 
-                     (buffer[offset + 1] << 8 * 1);
-    // clang-format on
+    uint64_t value = 0;
+    for (int i = 0; i < 2; ++i)
+    {
+        value |= (buffer[offset + i] << 8 * i);
+    }
     return value;
 }
 
@@ -187,12 +188,31 @@ static uint16_t Binary_Get_Uint16_L2B(uint8_t* buffer, size_t offset)
  */
 static uint32_t Binary_Get_Uint32_L2B(uint8_t* buffer, size_t offset)
 {
-    // clang-format off
-    uint32_t value = (buffer[offset] << 8 * 0) |
-                     (buffer[offset + 1] << 8 * 1) |
-                     (buffer[offset + 2] << 8 * 2) |
-                     (buffer[offset + 3] << 8 * 3);
-    // clang-format on
+    uint64_t value = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        value |= (buffer[offset + i] << 8 * i);
+    }
+    return value;
+}
+
+/**
+ * @brief Get 8 bytes int.
+ * 
+ * @param buffer JPEG binary buffer.
+ * @param offset offset in buffer.
+ * @return buffer: [offset, offset + 8).
+ * 
+ * @note Contains little-endian to big-endian conversion.
+ */
+static uint64_t Binary_Get_Uint64_L2B(uint8_t* buffer, size_t offset)
+{
+    uint64_t value = 0;
+    for (int i = 0; i < 8; ++i)
+    {
+        value |= ((uint64_t)buffer[offset + i] << 8 * i);
+        printf("current: [%x], value: [%x]\n", buffer[offset + i], value);
+    }
     return value;
 }
 
@@ -202,7 +222,7 @@ static uint32_t Binary_Get_Uint32_L2B(uint8_t* buffer, size_t offset)
  * @param buffer JPEG binary buffer.
  * @param offset offset in buffer.
  * @param length return buffer size, which always 4 bytes.
- * @return buffer: [offset, offset + length).
+ * @return buffer: [offset, offset + 4).
  * 
  * @note Contains little-endian to big-endian conversion.
  */
@@ -217,6 +237,29 @@ static float Binary_Get_Float32_L2B(uint8_t* buffer, size_t offset)
     value.u32 = Binary_Get_Uint32_L2B(buffer, offset);
 
     return value.f32;
+}
+
+/**
+ * @brief Get 8 bytes float.
+ * 
+ * @param buffer JPEG binary buffer.
+ * @param offset offset in buffer.
+ * @param length return buffer size, which always 8 bytes.
+ * @return buffer: [offset, offset + 8).
+ * 
+ * @note Contains little-endian to big-endian conversion.
+ */
+static double Binary_Get_Float64_L2B(uint8_t* buffer, size_t offset)
+{
+    union
+    {
+        uint64_t u64;
+        double f64;
+    } value;
+
+    value.u64 = Binary_Get_Uint64_L2B(buffer, offset);
+
+    return value.f64;
 }
 
 /**
@@ -492,7 +535,7 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     /* ----- Step 13 : Get Reflective Temperature ----- */
 
     float reflective_temp = Binary_Get_Float32_L2B(_bin_original, offset);
-    Debug("Ambient Temperature: [%x][%.2f]\n", reflective_temp, reflective_temp);
+    Debug("Reflective Temperature: [%x][%.2f]\n", reflective_temp, reflective_temp);
 
     obj->reflective_temp = (float*)malloc(sizeof(float));
     if (obj->reflective_temp == NULL)
@@ -519,6 +562,41 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     Debug("Manufacturer: [%s].\n", obj->manufacturer);
 
     offset += SGJW_MANUFACTURER_BYTES;
+
+    /* ----- Step 15 : Get Product ----- */
+
+    obj->product = (char*)malloc(sizeof(char) * SGJW_PRODUCT_BYTES);
+    if (obj->product == NULL)
+    {
+        retval = -15;
+        Debug("Allocate memory for product failed.\n");
+        goto free_return;
+    }
+
+    Binary_Get_Char(_bin_original, offset, SGJW_PRODUCT_BYTES, obj->product);
+    Debug("Product: [%s].\n", obj->product);
+
+    offset += SGJW_PRODUCT_BYTES;
+
+    /* ----- Step 16 : Get SN ----- */
+
+    obj->sn = (char*)malloc(sizeof(char) * SGJW_SN_BYTES);
+    if (obj->sn == NULL)
+    {
+        retval = -16;
+        Debug("Allocate memory for serial number failed.\n");
+        goto free_return;
+    }
+
+    Binary_Get_Char(_bin_original, offset, SGJW_SN_BYTES, obj->sn);
+    Debug("Serial Number: [%s].\n", obj->sn);
+
+    offset += SGJW_SN_BYTES;
+
+    /* ----- Step 16 : Get Longitude ----- */
+
+    double longitude = Binary_Get_Float64_L2B(_bin_original, offset);
+    Debug("Longitude: [%x][%.2lf]\n", longitude, longitude);
 
 free_return:
     if (buffer_size > 0)
@@ -552,7 +630,9 @@ void State_Grid_JPEG_Delete(StateGridJPEG* obj)
         obj->distance,
         obj->humidity,
         obj->reflective_temp,
-        obj->manufacturer
+        obj->manufacturer,
+        obj->product,
+        obj->sn
     };
     // clang-format on
 
