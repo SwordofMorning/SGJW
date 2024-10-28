@@ -147,6 +147,18 @@ static int8_t Binary_Verification_EOF(uint8_t* buffer, size_t buffer_size)
 }
 
 /**
+ * @brief Get 1 bytes int.
+ * 
+ * @param buffer JPEG binary buffer.
+ * @param offset offset in buffer.
+ * @return buffer: [offset].
+ */
+static uint8_t Binary_Get_Uint8(uint8_t* buffer, size_t offset)
+{
+    return buffer[offset];
+}
+
+/**
  * @brief Get 2 bytes int.
  * 
  * @param buffer JPEG binary buffer.
@@ -400,10 +412,10 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     /* ----- Step 9 : Get Emissivity ----- */
 
     float emissivity = Binary_Get_Float32_L2B(_bin_original, offset);
-    Debug("emissivity is: [%x][%d]\n", emissivity, emissivity);
+    Debug("Emissivity: [%x][%.2f]\n", emissivity, emissivity);
 
     obj->emissivity = (float*)malloc(sizeof(float));
-    if (obj->date == NULL)
+    if (obj->emissivity == NULL)
     {
         retval = -9;
         Debug("Allocate memory for emissivity failed.\n");
@@ -414,6 +426,99 @@ int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj)
     offset += SGJW_EMISSIVITY_BYTES;
 
     /* ----- Step 10 : Get Ambient Temperature ----- */
+
+    float ambient_temp = Binary_Get_Float32_L2B(_bin_original, offset);
+    Debug("Ambient Temperature: [%x][%.2f]\n", ambient_temp, ambient_temp);
+
+    obj->ambient_temp = (float*)malloc(sizeof(float));
+    if (obj->ambient_temp == NULL)
+    {
+        retval = -10;
+        Debug("Allocate memory for ambient temperature failed.\n");
+        goto free_return;
+    }
+
+    *(obj->ambient_temp) = ambient_temp;
+    offset += SGJW_AMBIENT_TEMP_BYTES;
+
+    /* ----- Step 11 : Get FOV ----- */
+
+    uint8_t fov = Binary_Get_Uint8(_bin_original, offset);
+    Debug("FOV: [%x][%d]\n", fov, fov);
+
+    obj->fov = (uint8_t*)malloc(sizeof(uint8_t));
+    if (obj->fov == NULL)
+    {
+        retval = -10;
+        Debug("Allocate memory for FOV failed.\n");
+        goto free_return;
+    }
+
+    *(obj->fov) = fov;
+    offset += SGJW_FOV_BYTES;
+
+    /* ----- Step 11 : Get Distance ----- */
+
+    uint32_t distance = Binary_Get_Uint32_L2B(_bin_original, offset);
+    Debug("Distance: [%x][%d]\n", distance, distance);
+
+    obj->distance = (uint32_t*)malloc(sizeof(uint32_t));
+    if (obj->distance == NULL)
+    {
+        retval = -11;
+        Debug("Allocate memory for distance failed.\n");
+        goto free_return;
+    }
+
+    *(obj->distance) = distance;
+    offset += SGJW_DISTANCE_BYTES;
+
+    /* ----- Step 12 : Get Humidity ----- */
+
+    uint8_t humidity = Binary_Get_Uint8(_bin_original, offset);
+    Debug("Humidity: [%x][%d]\n", humidity, humidity);
+
+    obj->humidity = (uint8_t*)malloc(sizeof(uint8_t));
+    if (obj->humidity == NULL)
+    {
+        retval = -12;
+        Debug("Allocate memory for Humidity failed.\n");
+        goto free_return;
+    }
+
+    *(obj->humidity) = humidity;
+    offset += SGJW_HUMIDITY_BYTES;
+
+    /* ----- Step 13 : Get Reflective Temperature ----- */
+
+    float reflective_temp = Binary_Get_Float32_L2B(_bin_original, offset);
+    Debug("Ambient Temperature: [%x][%.2f]\n", reflective_temp, reflective_temp);
+
+    obj->reflective_temp = (float*)malloc(sizeof(float));
+    if (obj->reflective_temp == NULL)
+    {
+        retval = -13;
+        Debug("Allocate memory for reflective temperature failed.\n");
+        goto free_return;
+    }
+
+    *(obj->reflective_temp) = reflective_temp;
+    offset += SGJW_REFLECTIVE_TEMP_BYTES;
+
+    /* ----- Step 14 : Get Manufacturer ----- */
+
+    obj->manufacturer = (char*)malloc(sizeof(char) * SGJW_MANUFACTURER_BYTES);
+    if (obj->manufacturer == NULL)
+    {
+        retval = -14;
+        Debug("Allocate memory for manufacturer failed.\n");
+        goto free_return;
+    }
+
+    Binary_Get_Char(_bin_original, offset, SGJW_MANUFACTURER_BYTES, obj->manufacturer);
+    Debug("Manufacturer: [%s].\n", obj->manufacturer);
+
+    offset += SGJW_MANUFACTURER_BYTES;
 
 free_return:
     if (buffer_size > 0)
@@ -441,7 +546,13 @@ void State_Grid_JPEG_Delete(StateGridJPEG* obj)
         obj->height,
         obj->date,
         obj->matrix,
-        obj->emissivity
+        obj->emissivity,
+        obj->ambient_temp,
+        obj->fov,
+        obj->distance,
+        obj->humidity,
+        obj->reflective_temp,
+        obj->manufacturer
     };
     // clang-format on
 

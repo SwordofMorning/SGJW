@@ -25,6 +25,16 @@ typedef struct _StateGridJPEG
     float* emissivity;
     // Ambient temperature. @attention Which is Celsius.
     float* ambient_temp;
+    // FOV.
+    uint8_t* fov;
+    // Distance.
+    uint32_t* distance;
+    // Humidity.
+    uint8_t* humidity;
+    // Reflective temperature. @attention Which is Celsius.
+    float* reflective_temp;
+    // Manufacturer, 32 bytes.
+    char* manufacturer;
 } StateGridJPEG;
 
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);
