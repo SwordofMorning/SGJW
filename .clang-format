@@ -80,3 +80,6 @@ AlignOperands: DontAlign
 
 # 保持条件表达式格式
 AllowShortLambdasOnASingleLine: Empty
+
+# Switch 语句设置
+IndentCaseLabels: true

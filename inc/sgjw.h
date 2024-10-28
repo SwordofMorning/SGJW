@@ -9,7 +9,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct _StateGridJPEG
+
+// Error codes
+typedef enum
+{
+    SGJW_SUCCESS = 0,
+    SGJW_ERROR_FILE_NOT_FOUND = -1,
+    SGJW_ERROR_MALLOC_FAILED = -2,
+    SGJW_ERROR_READ_FAILED = -3,
+    SGJW_ERROR_INVALID_EOF = -4,
+    SGJW_ERROR_INVALID_OFFSET = -5,
+    SGJW_ERROR_FIELD_READ_FAILED = -6,
+    SGJW_ERROR_INVALID_PARAMS = -7
+} SGJW_ERROR;
+
+// Main structure
+typedef struct
 {
     // File version, @attention which is hex, 0x0100(big-endian) means version 1.0.
     uint16_t* version;
@@ -37,7 +52,7 @@ typedef struct _StateGridJPEG
     char* manufacturer;
     // Product(type), 32 bytes.
     char* product;
-    // Serial number;
+    // Serial number, 32 bytes.
     char* sn;
     // Longitude, 8 bytes, IEEE-754 float64.
     double* longitude;
@@ -51,10 +66,28 @@ typedef struct _StateGridJPEG
     char* appendix;
 } StateGridJPEG;
 
+/**
+ * @brief Read JPEG file and parse its content.
+ * 
+ * @param filepath Path to the JPEG file.
+ * @param obj Pointer to StateGridJPEG structure.
+ * @return SGJW_ERROR code.
+ */
 int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);
 
+/**
+ * @brief Write StateGridJPEG structure to file.
+ * 
+ * @param path Path to output file.
+ * @return SGJW_ERROR code.
+ */
 int8_t State_Grid_JPEG_Writer(const char* path);
 
+/**
+ * @brief Free all allocated memory in StateGridJPEG structure.
+ * 
+ * @param obj Pointer to StateGridJPEG structure.
+ */
 void State_Grid_JPEG_Delete(StateGridJPEG* obj);
 
 #ifdef __cplusplus
