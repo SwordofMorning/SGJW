@@ -20,7 +20,10 @@ typedef enum
     SGJW_ERROR_INVALID_EOF = -4,
     SGJW_ERROR_INVALID_OFFSET = -5,
     SGJW_ERROR_FIELD_READ_FAILED = -6,
-    SGJW_ERROR_INVALID_PARAMS = -7
+    SGJW_ERROR_INVALID_PARAMS = -7,
+    SGJW_ERROR_MEMORY_ALLOCATION = -8,
+    SGJW_ERROR_FILE_WRITE = -9,
+    SGJW_ERROR_FIELD_SET_FAILED = 10
 } SGJW_ERROR;
 
 // Main structure
@@ -73,22 +76,23 @@ typedef struct
  * @param obj Pointer to StateGridJPEG structure.
  * @return SGJW_ERROR code.
  */
-int8_t State_Grid_JPEG_Reader(const char* filepath, StateGridJPEG* obj);
+int8_t State_Grid_JPEG_Read(const char* filepath, StateGridJPEG* obj);
 
 /**
- * @brief Write StateGridJPEG structure to file.
+ * @brief Append SGJW information to jpeg file.
  * 
- * @param path Path to output file.
+ * @param filepath Path to output file.
+ * @param obj Pointer to StateGridJPEG structure.
  * @return SGJW_ERROR code.
  */
-int8_t State_Grid_JPEG_Writer(const char* path);
+int8_t State_Grid_JPEG_Append(const char* filepath, StateGridJPEG* obj);
 
 /**
  * @brief Free all allocated memory in StateGridJPEG structure.
  * 
  * @param obj Pointer to StateGridJPEG structure.
  */
-void State_Grid_JPEG_Delete(StateGridJPEG* obj);
+void State_Grid_JPEG_Delete_OBJ(StateGridJPEG* obj);
 
 #ifdef __cplusplus
 }
