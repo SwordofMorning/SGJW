@@ -125,3 +125,7 @@ function main()
 }
 
 main $1
+
+#################### Section 5 : Clang-Format ####################
+
+# find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs clang-format-16 -style=file | diff -u <(find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs cat) - > .clang-format.diff
