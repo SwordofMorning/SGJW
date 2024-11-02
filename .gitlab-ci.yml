@@ -4,7 +4,7 @@ stages:
 clang-format:
   stage: clang-format
   tags:
-    - clang-format
+    - cf
   script:
     - find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs clang-format-16 -style=file | diff -u <(find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs cat) - > .clang-format.diff
     - |
