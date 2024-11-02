@@ -1,0 +1,20 @@
+stages:
+  - clang-format
+
+clang-format:
+  stage: clang-format
+  tags:
+    - clang-format
+  script:
+    - find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs clang-format-16 -style=file | diff -u <(find inc src -name '*.cpp' -o -name '*.h' -o -name '*.c' | xargs cat) - > .clang-format.diff
+    - |
+      if [ -s .clang-format.diff ]; then
+        echo "Clang-format failed. Please apply the following patch:"
+        cat .clang-format.diff
+        exit 1
+      fi
+  artifacts:
+    paths:
+      - .clang-format.diff
+    when: on_failure
+    expire_in: 1 week
